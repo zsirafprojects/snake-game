@@ -82,20 +82,37 @@
             text-align: center;
             flex-direction: column;
             z-index: 20;
+            padding: 12px; /* CHANGED */
+            box-sizing: border-box; /* CHANGED */
+            overflow: hidden; /* CHANGED */
         }
         #name-input-area { font-size: 20px; margin: 15px 0; }
-        #leaderboard {
+
+        /* Ranglista: ne lógjon ki, legyen görgethető a Game Over overlayen belül */ /* CHANGED */
+        #leaderboard { /* CHANGED */
             width: 100%;
             max-width: 350px;
-            margin-top: 30px;
-            padding: 15px;
+            margin-top: 18px; /* CHANGED */
+            padding: 12px; /* CHANGED */
             background-color: #111;
             border: 1px solid #0f0;
             font-size: 20px;
+            box-sizing: border-box; /* CHANGED */
+
+            max-height: 35vh; /* CHANGED */
+            overflow-y: auto; /* CHANGED */
+            overflow-x: hidden; /* CHANGED */
         }
         #leaderboard h3 { margin-top: 0; color: #0f0; }
-        #leaderboard ol { padding-left: 20px; list-style-type: decimal; }
-        #leaderboard li { padding: 5px 0; display: flex; justify-content: space-between; }
+        #leaderboard ol { padding-left: 20px; list-style-type: decimal; margin: 0; } /* CHANGED */
+        #leaderboard li { padding: 5px 0; display: flex; justify-content: space-between; gap: 12px; } /* CHANGED */
+        #leaderboard li span:first-child { /* CHANGED */
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 70%;
+        }
+
         #controls {
             display: grid;
             grid-template-areas: ". up ." "left . right" ". down .";
@@ -116,12 +133,20 @@
             -webkit-tap-highlight-color: transparent; /* CHANGED */
             touch-action: manipulation; /* CHANGED */
         }
+
         @media (max-width: 850px) {
             #game-container { width: 90vw; height: 90vw; max-width: 480px; max-height: 480px; }
             #controls { width: 200px; gap: 5px; }
             h1 { font-size: 28px; }
-            #game-over { font-size: 30px; }
+            #game-over { font-size: 30px; padding: 10px; } /* CHANGED */
+            #leaderboard { max-width: 92%; font-size: 16px; max-height: 30vh; } /* CHANGED */
+            #name-input-area { font-size: 16px; } /* CHANGED */
         }
+
+        /* Extra: nagyon alacsony képernyőn még agresszívebb leaderboard magasság */ /* CHANGED */
+        @media (max-height: 600px) { /* CHANGED */
+            #leaderboard { max-height: 26vh; } /* CHANGED */
+        } /* CHANGED */
     </style>
 
     <!-- SUPABASE SDK BETÖLTÉSE CDN-RŐL -->
