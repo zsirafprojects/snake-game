@@ -3,9 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Közpénz Kisvonat</title>
+    <title>Közpénz Kisvonat (Supabase SDK)</title>
     <style>
         /* [Stílusok változatlanok] */
+        :root { --tile-size: 60px; } /* CHANGED */
+
         body {
             display: flex;
             flex-direction: column;
@@ -40,8 +42,8 @@
         }
         .game-element {
             position: absolute;
-            width: 60px;
-            height: 60px;
+            width: var(--tile-size);  /* CHANGED */
+            height: var(--tile-size); /* CHANGED */
             box-sizing: border-box;
             transition: opacity 0.1s;
         }
@@ -192,7 +194,7 @@
         const leaderboardDiv = document.getElementById('leaderboard');
         const playerNameInput = document.getElementById('player-name');
 
-        const TILE_SIZE = 60;
+        let TILE_SIZE = 60; // CHANGED (const -> let, mobilon dinamikus)
         const GRID_SIZE = 13;
 
         let snake = [];
@@ -209,17 +211,13 @@
         const scoreSound = document.getElementById('score-sound'); // CHANGED
         let audioUnlocked = false; // CHANGED
 
-        // --- MOBIL/MÉRETEZÉS: skálázás, hogy a 13*60 px rács minden kijelzőn kiférjen --- // CHANGED
-        function applyGameScale() { // CHANGED
-            const baseSize = GRID_SIZE * TILE_SIZE; // 780
-            const w = gameContainer.clientWidth || baseSize;
-            const h = gameContainer.clientHeight || baseSize;
-            const scale = Math.min(w / baseSize, h / baseSize);
-            gameContainer.style.transformOrigin = 'top left';
-            gameContainer.style.transform = `scale(${scale})`;
-
-            // A skálázott konténer "valódi" vizuális helyigénye miatt adjunk alá helyet (különben összecsúszhat a layout) // CHANGED
-            gameContainer.style.marginBottom = `${20 + (baseSize * scale - baseSize)}px`; // CHANGED
+        // --- MOBIL/MÉRETEZÉS: dinamikus csempe-méret (nem transform-scale) --- // CHANGED
+        function applyGameScale() { // CHANGED (a belső logika teljesen cserélve)
+            const rect = gameContainer.getBoundingClientRect(); // CHANGED
+            const usable = Math.min(rect.width, rect.height);   // CHANGED
+            const newTile = Math.floor(usable / GRID_SIZE);     // CHANGED
+            TILE_SIZE = Math.max(20, newTile);                  // CHANGED (min tile méret)
+            document.documentElement.style.setProperty('--tile-size', TILE_SIZE + 'px'); // CHANGED
         }
 
         // Mobil böngészők sokszor csak user-gesztus után engedik a hangot.
@@ -245,7 +243,6 @@
         } // CHANGED
 
         function playScoreSound() { // CHANGED
-            // Ha még nem lett "feloldva", akkor is megpróbáljuk (asztalon általában megy). // CHANGED
             try { // CHANGED
                 scoreSound.currentTime = 0; // CHANGED
                 const p = scoreSound.play(); // CHANGED
@@ -255,8 +252,8 @@
 
         // --- SEGÉDFÜGGVÉNYEK ---
         function updateElementPosition(element, x, y) {
-             element.style.left = `${x * TILE_SIZE}px`;
-             element.style.top = `${y * TILE_SIZE}px`;
+             element.style.left = `${x * TILE_SIZE}px`; // CHANGED
+             element.style.top = `${y * TILE_SIZE}px`;  // CHANGED
         }
         function createSegment(x, y) {
             const segmentDiv = document.createElement('div');
@@ -354,7 +351,7 @@
         // --- JÁTÉK LOOP ---
 
         function initGame() {
-            applyGameScale(); // CHANGED
+            applyGameScale(); // CHANGED (dinamikus TILE_SIZE)
             segmentElements.forEach(el => el.remove());
             snake = [];
             segmentElements = [];
@@ -491,7 +488,7 @@
         }
 
         function startGame() {
-            unlockAudioOnce(); // CHANGED (újrakezdés gomb is user-gesztus)
+            unlockAudioOnce(); // CHANGED
             initGame();
         }
 
@@ -509,15 +506,56 @@
             }
         });
 
-        // Mobil: görgetés/zoom ne zavarjon játék közben // CHANGED
-        document.addEventListener('touchmove', (e) => { e.preventDefault(); }, { passive: false }); // CHANGED
+        // Mobil: CSAK a játékterületen akadályozzuk a scrollt, ne globálisan (különben gomb/input is szív) // CHANGED
+        gameContainer.addEventListener('touchmove', (e) => { e.preventDefault(); }, { passive: false }); // CHANGED
+        document.getElementById('controls').addEventListener('touchmove', (e) => { e.preventDefault(); }, { passive: false }); // CHANGED
 
-        // Méretváltozáskor skálázzuk újra // CHANGED
-        window.addEventListener('resize', () => { applyGameScale(); }); // CHANGED
+        // Swipe irányítás a pályán (gombok nélkül is működjön) // CHANGED
+        let touchStartX = 0; // CHANGED
+        let touchStartY = 0; // CHANGED
+        gameContainer.addEventListener('touchstart', (e) => { // CHANGED
+            unlockAudioOnce(); // CHANGED
+            const t = e.changedTouches[0]; // CHANGED
+            touchStartX = t.clientX; // CHANGED
+            touchStartY = t.clientY; // CHANGED
+        }, { passive: true }); // CHANGED
+
+        gameContainer.addEventListener('touchend', (e) => { // CHANGED
+            const t = e.changedTouches[0]; // CHANGED
+            const dx = t.clientX - touchStartX; // CHANGED
+            const dy = t.clientY - touchStartY; // CHANGED
+            const adx = Math.abs(dx); // CHANGED
+            const ady = Math.abs(dy); // CHANGED
+
+            // minimális swipe küszöb // CHANGED
+            if (Math.max(adx, ady) < 20) return; // CHANGED
+
+            if (adx > ady) { // CHANGED
+                setNextDirection(dx > 0 ? 'right' : 'left'); // CHANGED
+            } else { // CHANGED
+                setNextDirection(dy > 0 ? 'down' : 'up'); // CHANGED
+            } // CHANGED
+        }, { passive: true }); // CHANGED
+
+        // Méretváltozáskor új csempe-méret + újrapozicionálás // CHANGED
+        function reflowAll() { // CHANGED
+            applyGameScale(); // CHANGED
+            if (snake.length > 0) { // CHANGED
+                updateElementPosition(snakeHeadElement, snake[0].x, snake[0].y); // CHANGED
+                for (let i = 0; i < segmentElements.length; i++) { // CHANGED
+                    const pos = snake[i + 1]; // CHANGED
+                    const elem = segmentElements[i]; // CHANGED
+                    if (elem && pos) updateElementPosition(elem, pos.x, pos.y); // CHANGED
+                } // CHANGED
+                updateElementPosition(foodElement, food.x, food.y); // CHANGED
+            } // CHANGED
+        } // CHANGED
+
+        window.addEventListener('resize', reflowAll); // CHANGED
+        window.addEventListener('orientationchange', reflowAll); // CHANGED
 
         // Hang-feloldás bármilyen első interakcióra (mobil Safari/Chrome miatt) // CHANGED
         document.addEventListener('pointerdown', unlockAudioOnce, { passive: true }); // CHANGED
-        document.addEventListener('touchstart', unlockAudioOnce, { passive: true }); // CHANGED
 
         // --- INDÍTÁS ---
         displayLeaderboard();
