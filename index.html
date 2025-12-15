@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Közpénz Kisvonat</title>
+    <style>
+        /* [Stílusok változatlanok] */
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #222;
+            font-family: monospace;
+            color: #fff;
+            padding: 10px;
+            touch-action: manipulation; /* CHANGED */
+        }
+
+        h1 { color: yellow; margin-bottom: 20px; font-size: 36px; }
+        #game-container {
+            width: 780px;
+            height: 780px;
+            background-color: #000;
+            border: 5px solid yellow;
+            position: relative;
+            box-shadow: 0 0 20px yellow;
+            margin-bottom: 20px;
+            overflow: hidden; /* CHANGED */
+        }
+        #info-bar {
+            margin-bottom: 15px;
+            font-size: 24px;
+            color: yellow;
+            display: flex;
+            gap: 50px;
+        }
+        .game-element {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            box-sizing: border-box;
+            transition: opacity 0.1s;
+        }
+        .snake-segment {
+            background-image: url('https://kephost.net/p/MjIxNjU4OQ.png');
+            background-size: cover;
+            background-position: center;
+            border: none;
+            border-radius: 0;
+        }
+        #snake-head {
+            background-image: url('https://kephost.net/p/MjIxNjAyNA.png');
+            background-size: cover;
+            background-position: center;
+            z-index: 10;
+        }
+        #food {
+            background-image: url('https://kephost.net/p/MjIxNjU2Nw.png');
+            background-size: cover;
+            background-position: center;
+            border: none;
+            z-index: 5;
+        }
+        #game-over {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            color: white;
+            font-size: 50px;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            flex-direction: column;
+            z-index: 20;
+        }
+        #name-input-area { font-size: 20px; margin: 15px 0; }
+        #leaderboard {
+            width: 100%;
+            max-width: 350px;
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #111;
+            border: 1px solid #0f0;
+            font-size: 20px;
+        }
+        #leaderboard h3 { margin-top: 0; color: #0f0; }
+        #leaderboard ol { padding-left: 20px; list-style-type: decimal; }
+        #leaderboard li { padding: 5px 0; display: flex; justify-content: space-between; }
+        #controls {
+            display: grid;
+            grid-template-areas: ". up ." "left . right" ". down .";
+            gap: 10px;
+            width: 300px;
+            margin-top: 20px;
+            touch-action: manipulation; /* CHANGED */
+        }
+        .control-button {
+            padding: 15px;
+            font-size: 20px;
+            background-color: yellow;
+            color: #000;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent; /* CHANGED */
+            touch-action: manipulation; /* CHANGED */
+        }
+        @media (max-width: 850px) {
+            #game-container { width: 90vw; height: 90vw; max-width: 480px; max-height: 480px; }
+            #controls { width: 200px; gap: 5px; }
+            h1 { font-size: 28px; }
+            #game-over { font-size: 30px; }
+        }
+    </style>
+
+    <!-- SUPABASE SDK BETÖLTÉSE CDN-RŐL -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+    <h1>KÖZPÉNZ KISVONAT</h1>
+
+    <div id="info-bar">
+        <span>Pontszám: <span id="score">0</span></span>
+    </div>
+
+    <!-- Hang pontszerzéshez (a fájl legyen ugyanabban a mappában: lolo.mp3) --> <!-- CHANGED -->
+    <audio id="score-sound" preload="auto" src="lolo.mp3"></audio> <!-- CHANGED -->
+
+    <div id="game-container">
+        <div id="game-over">
+            GAME OVER!
+            <div id="final-score"></div>
+
+            <div id="name-input-area" style="display: none;">
+                Írd be a neved a ranglistához:
+                <input type="text" id="player-name" maxlength="15" placeholder="Név">
+                <button onclick="submitScore()">Mentés</button>
+            </div>
+
+            <button onclick="startGame()">Újrakezdés</button>
+            <div id="leaderboard"></div>
+        </div>
+        <div id="snake-head" class="game-element"></div>
+        <div id="food" class="game-element"></div>
+    </div>
+
+    <div id="controls">
+        <button id="up" class="control-button"
+            ontouchstart="setNextDirection('up'); event.preventDefault();"
+            onclick="setNextDirection('up')">↑</button> <!-- CHANGED -->
+        <button id="left" class="control-button"
+            ontouchstart="setNextDirection('left'); event.preventDefault();"
+            onclick="setNextDirection('left')">←</button> <!-- CHANGED -->
+        <button id="right" class="control-button"
+            ontouchstart="setNextDirection('right'); event.preventDefault();"
+            onclick="setNextDirection('right')">→</button> <!-- CHANGED -->
+        <button id="down" class="control-button"
+            ontouchstart="setNextDirection('down'); event.preventDefault();"
+            onclick="setNextDirection('down')">↓</button> <!-- CHANGED -->
+    </div>
+
+    <script>
+        // CONTRACT: A függvénynév és változónevek megmaradnak, a Supabase konfiguráció is
+
+        // *** SUPABASE KONFIGURÁCIÓ ***
+        const SUPABASE_URL = 'https://fekujpquotpomjcowzmp.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_YddNPgsIIJm28g2DI5PIIg_oh3AUhFC';
+
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        const TABLE_NAME = 'scores';
+        const LEADERBOARD_LIMIT = 10;
+
+        // [DOM elemek és Játék Állapot]
+        const gameContainer = document.getElementById('game-container');
+        const scoreDisplay = document.getElementById('score');
+        const gameOverMessage = document.getElementById('game-over');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const snakeHeadElement = document.getElementById('snake-head');
+        const foodElement = document.getElementById('food');
+        const nameInputArea = document.getElementById('name-input-area');
+        const leaderboardDiv = document.getElementById('leaderboard');
+        const playerNameInput = document.getElementById('player-name');
+
+        const TILE_SIZE = 60;
+        const GRID_SIZE = 13;
+
+        let snake = [];
+        let segmentElements = [];
+        let direction = 'right';
+        let nextDirection = 'right';
+        let score = 0;
+        let gameInterval;
+        let gameSpeed = 220;
+
+        let food = { x: 0, y: 0 }; // CHANGED
+
+        // Hang: pontszerzés // CHANGED
+        const scoreSound = document.getElementById('score-sound'); // CHANGED
+        let audioUnlocked = false; // CHANGED
+
+        // --- MOBIL/MÉRETEZÉS: skálázás, hogy a 13*60 px rács minden kijelzőn kiférjen --- // CHANGED
+        function applyGameScale() { // CHANGED
+            const baseSize = GRID_SIZE * TILE_SIZE; // 780
+            const w = gameContainer.clientWidth || baseSize;
+            const h = gameContainer.clientHeight || baseSize;
+            const scale = Math.min(w / baseSize, h / baseSize);
+            gameContainer.style.transformOrigin = 'top left';
+            gameContainer.style.transform = `scale(${scale})`;
+
+            // A skálázott konténer "valódi" vizuális helyigénye miatt adjunk alá helyet (különben összecsúszhat a layout) // CHANGED
+            gameContainer.style.marginBottom = `${20 + (baseSize * scale - baseSize)}px`; // CHANGED
+        }
+
+        // Mobil böngészők sokszor csak user-gesztus után engedik a hangot.
+        // Első érintés/billentyű után "feloldjuk" a hangot. // CHANGED
+        function unlockAudioOnce() { // CHANGED
+            if (audioUnlocked) return; // CHANGED
+            audioUnlocked = true; // CHANGED
+            try { // CHANGED
+                scoreSound.muted = true; // CHANGED
+                const p = scoreSound.play(); // CHANGED
+                if (p && typeof p.then === 'function') { // CHANGED
+                    p.then(() => { // CHANGED
+                        scoreSound.pause(); // CHANGED
+                        scoreSound.currentTime = 0; // CHANGED
+                        scoreSound.muted = false; // CHANGED
+                    }).catch(() => { /* néma */ }); // CHANGED
+                } else { // CHANGED
+                    scoreSound.pause(); // CHANGED
+                    scoreSound.currentTime = 0; // CHANGED
+                    scoreSound.muted = false; // CHANGED
+                } // CHANGED
+            } catch (e) { /* néma */ } // CHANGED
+        } // CHANGED
+
+        function playScoreSound() { // CHANGED
+            // Ha még nem lett "feloldva", akkor is megpróbáljuk (asztalon általában megy). // CHANGED
+            try { // CHANGED
+                scoreSound.currentTime = 0; // CHANGED
+                const p = scoreSound.play(); // CHANGED
+                if (p && typeof p.catch === 'function') p.catch(() => {}); // CHANGED
+            } catch (e) {} // CHANGED
+        } // CHANGED
+
+        // --- SEGÉDFÜGGVÉNYEK ---
+        function updateElementPosition(element, x, y) {
+             element.style.left = `${x * TILE_SIZE}px`;
+             element.style.top = `${y * TILE_SIZE}px`;
+        }
+        function createSegment(x, y) {
+            const segmentDiv = document.createElement('div');
+            segmentDiv.className = 'game-element snake-segment';
+            updateElementPosition(segmentDiv, x, y);
+            gameContainer.appendChild(segmentDiv);
+            return segmentDiv;
+        }
+        function setNextDirection(newDir) {
+            unlockAudioOnce(); // CHANGED (mobil hang-feloldás gombnyomásra)
+
+            const currentDir = direction;
+
+            if (newDir === 'up' && currentDir !== 'down') {
+                nextDirection = 'up';
+            } else if (newDir === 'down' && currentDir !== 'up') {
+                nextDirection = 'down';
+            } else if (newDir === 'left' && currentDir !== 'right') {
+                nextDirection = 'left';
+            } else if (newDir === 'right' && currentDir !== 'left') {
+                nextDirection = 'right';
+            }
+        }
+        window.setNextDirection = setNextDirection;
+
+
+        // --- SUPABASE RANGISTA FUNKCIÓK ---
+
+        async function displayLeaderboard() {
+            leaderboardDiv.innerHTML = '<h3>Ranglista betöltése Supabase-ről...</h3>';
+            try {
+                const { data, error } = await supabase
+                    .from(TABLE_NAME)
+                    .select('player_name, score')
+                    .order('score', { ascending: false })
+                    .limit(LEADERBOARD_LIMIT);
+
+                if (error) throw error;
+
+                const board = data;
+
+                let html = `<h3>TOP ${LEADERBOARD_LIMIT} Közpénz Fogyasztó (Supabase)</h3><ol>`;
+
+                if (board.length === 0) {
+                    html += '<li>Még nincs bejegyzés a szerveren.</li>';
+                } else {
+                    board.forEach((entry) => {
+                        html += `<li><span>${entry.player_name}</span><span>${entry.score}</span></li>`;
+                    });
+                }
+                html += '</ol>';
+                leaderboardDiv.innerHTML = html;
+
+            } catch (error) {
+                console.error("Hiba a Supabase ranglista letöltésekor:", error.message || error);
+                leaderboardDiv.innerHTML = '<h3>Hiba: Nincs kapcsolat a Supabase-szel.</h3>';
+            }
+        }
+
+        async function submitScore() {
+            const name = playerNameInput.value.trim() || 'Névtelen';
+
+            const data = {
+                player_name: name,
+                score: score
+            };
+
+            nameInputArea.innerHTML = 'Pontszám mentése...';
+
+            try {
+                const { error } = await supabase
+                    .from(TABLE_NAME)
+                    .insert([data]);
+
+                if (error) throw error;
+
+                // Pontszám mentés visszajelzés eltávolítva
+                nameInputArea.style.display = 'none';
+                displayLeaderboard();
+
+            } catch (error) {
+                console.error("Hiba a pontszám Supabase-re küldésekor:", error.message || error);
+                alert('Hiba történt a mentés során: ' + (error.message || 'Ismeretlen hiba.'));
+            }
+
+            nameInputArea.innerHTML = `
+                Írd be a neved a ranglistához:
+                <input type="text" id="player-name" maxlength="15" placeholder="Név" value="${name}">
+                <button onclick="submitScore()">Mentés</button>
+            `;
+        }
+        window.submitScore = submitScore;
+
+
+        // --- JÁTÉK LOOP ---
+
+        function initGame() {
+            applyGameScale(); // CHANGED
+            segmentElements.forEach(el => el.remove());
+            snake = [];
+            segmentElements = [];
+
+            score = 0;
+            scoreDisplay.textContent = 0;
+            direction = 'right';
+            nextDirection = 'right';
+            gameOverMessage.style.display = 'none';
+            nameInputArea.style.display = 'none';
+            gameSpeed = 220;
+
+            const startX = 3;
+            const startY = Math.floor(GRID_SIZE / 2);
+
+            // Kezdeti állapot: 1 fej + 1 farok elem
+            snake.push({ x: startX, y: startY }); // Fej koordináta
+            snake.push({ x: startX - 1, y: startY }); // Első testszegmens koordináta
+            segmentElements.push(createSegment(startX - 1, startY)); // Első testszegmens DOM elem
+
+            updateElementPosition(snakeHeadElement, startX, startY);
+            placeFood();
+
+            clearInterval(gameInterval);
+            gameInterval = setInterval(gameLoop, gameSpeed);
+        }
+
+        function placeFood() {
+            // ... (logika változatlan) ...
+            let newX, newY;
+            let collision;
+            do {
+                collision = false;
+                newX = Math.floor(Math.random() * GRID_SIZE);
+                newY = Math.floor(Math.random() * GRID_SIZE);
+
+                for (const pos of snake) {
+                    if (pos.x === newX && pos.y === newY) {
+                        collision = true;
+                        break;
+                    }
+                }
+            } while (collision);
+
+            food = { x: newX, y: newY };
+            updateElementPosition(foodElement, newX, newY);
+            foodElement.style.display = 'block';
+        }
+
+        function gameLoop() {
+            if (snake.length === 0) return;
+
+            direction = nextDirection;
+
+            let newHeadX = snake[0].x;
+            let newHeadY = snake[0].y;
+
+            switch (direction) {
+                case 'up': newHeadY--; break;
+                case 'down': newHeadY++; break;
+                case 'left': newHeadX--; break;
+                case 'right': newHeadX++; break;
+            }
+
+            if (newHeadX < 0 || newHeadX >= GRID_SIZE || newHeadY < 0 || newHeadY >= GRID_SIZE) {
+                endGame(); return;
+            }
+            for (let i = 1; i < snake.length; i++) {
+                if (snake[i].x === newHeadX && snake[i].y === newHeadY) {
+                    endGame(); return;
+                }
+            }
+
+            const ateFood = (newHeadX === food.x && newHeadY === food.y);
+
+            // Mentjük a farok (utolsó szegmens) pozícióját
+            const tailBeforeMove = { // CHANGED
+                x: snake[snake.length - 1].x,
+                y: snake[snake.length - 1].y
+            };
+
+            // Új fejet adunk a tömb elejére
+            snake.unshift({ x: newHeadX, y: newHeadY });
+            updateElementPosition(snakeHeadElement, newHeadX, newHeadY);
+
+            if (!ateFood) {
+                // Mozgás: a farok levágása (hossz változatlan)
+                snake.pop();
+
+                // FONTOS: a DOM elemeket NEM töröljük tick-enként, csak átpozícionáljuk. // CHANGED
+            } else {
+                score += 10;
+                scoreDisplay.textContent = score;
+
+                playScoreSound(); // CHANGED (pontszerzés hang)
+
+                placeFood();
+
+                // Növekedés: új testszegmens DOM elem a korábbi farokpozícióra // CHANGED
+                const newBodySegment = createSegment(tailBeforeMove.x, tailBeforeMove.y); // CHANGED
+                segmentElements.push(newBodySegment); // CHANGED
+
+                if (gameSpeed > 50) {
+                     gameSpeed -= 5;
+                     clearInterval(gameInterval);
+                     gameInterval = setInterval(gameLoop, gameSpeed);
+                }
+            }
+
+            // Szinkronizálás/önjavítás: biztosítjuk, hogy a DOM szegmensek száma = snake.length - 1 // CHANGED
+            while (segmentElements.length < snake.length - 1) { // CHANGED
+                const p = snake[segmentElements.length + 1] || tailBeforeMove; // CHANGED
+                segmentElements.push(createSegment(p.x, p.y)); // CHANGED
+            }
+            while (segmentElements.length > snake.length - 1) { // CHANGED
+                const extra = segmentElements.pop(); // CHANGED
+                if (extra) extra.remove(); // CHANGED
+            }
+
+            // A test DOM elemeinek frissítése
+            for (let i = 0; i < segmentElements.length; i++) {
+                const pos = snake[i + 1];
+                const elem = segmentElements[i];
+                if (elem && pos) updateElementPosition(elem, pos.x, pos.y);
+            }
+        }
+
+        function endGame() {
+            clearInterval(gameInterval);
+            finalScoreDisplay.innerHTML = `Elschmittelt közpénz: ${score}`; // CHANGED
+            nameInputArea.style.display = 'flex';
+            gameOverMessage.style.display = 'flex';
+            displayLeaderboard();
+        }
+
+        function startGame() {
+            unlockAudioOnce(); // CHANGED (újrakezdés gomb is user-gesztus)
+            initGame();
+        }
+
+        // --- VEZÉRLÉS ---
+        document.addEventListener('keydown', (e) => {
+            if (e.key.startsWith('Arrow')) {
+                unlockAudioOnce(); // CHANGED
+                e.preventDefault();
+                let dir;
+                if (e.key === 'ArrowUp') dir = 'up';
+                else if (e.key === 'ArrowDown') dir = 'down';
+                else if (e.key === 'ArrowLeft') dir = 'left';
+                else if (e.key === 'ArrowRight') dir = 'right';
+                setNextDirection(dir);
+            }
+        });
+
+        // Mobil: görgetés/zoom ne zavarjon játék közben // CHANGED
+        document.addEventListener('touchmove', (e) => { e.preventDefault(); }, { passive: false }); // CHANGED
+
+        // Méretváltozáskor skálázzuk újra // CHANGED
+        window.addEventListener('resize', () => { applyGameScale(); }); // CHANGED
+
+        // Hang-feloldás bármilyen első interakcióra (mobil Safari/Chrome miatt) // CHANGED
+        document.addEventListener('pointerdown', unlockAudioOnce, { passive: true }); // CHANGED
+        document.addEventListener('touchstart', unlockAudioOnce, { passive: true }); // CHANGED
+
+        // --- INDÍTÁS ---
+        displayLeaderboard();
+        startGame();
+        applyGameScale(); // CHANGED
+
+    </script>
+
+</body>
+</html>
