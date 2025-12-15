@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Közpénz Kisvonat (Supabase SDK)</title>
+    <title>Közpénz Kisvonat</title>
     <style>
         /* [Stílusok változatlanok] */
         :root { --tile-size: 60px; } /* CHANGED */
@@ -69,7 +69,7 @@
             z-index: 5;
         }
 
-        /* GAME OVER: teljes képernyős overlay, hogy a ranglista biztosan látszódjon */ /* CHANGED */
+        /* GAME OVER: teljes képernyős overlay */ /* CHANGED */
         #game-over {
             position: fixed; /* CHANGED */
             top: 0; /* CHANGED */
@@ -89,9 +89,10 @@
             box-sizing: border-box; /* CHANGED */
             overflow: hidden; /* CHANGED */
             gap: 10px; /* CHANGED */
+            pointer-events: auto; /* CHANGED */
         }
 
-        /* Név beírás: mobilbarát tördelés + max szélesség */ /* CHANGED */
+        /* Név beírás: mobilbarát */ /* CHANGED */
         #name-input-area { /* CHANGED */
             font-size: 20px;
             margin: 10px 0; /* CHANGED */
@@ -120,7 +121,7 @@
             cursor: pointer; /* CHANGED */
         }
 
-        /* Ranglista: a teljes képernyős overlayen belül nagy, és görgethető */ /* CHANGED */
+        /* Ranglista: overlayen belül */ /* CHANGED */
         #leaderboard { /* CHANGED */
             width: min(92vw, 520px); /* CHANGED */
             max-width: 520px; /* CHANGED */
@@ -248,9 +249,8 @@
         const foodElement = document.getElementById('food');
         const nameInputArea = document.getElementById('name-input-area');
         const leaderboardDiv = document.getElementById('leaderboard');
-        const playerNameInput = document.getElementById('player-name');
 
-        let TILE_SIZE = 60; // CHANGED (const -> let, mobilon dinamikus)
+        let TILE_SIZE = 60; // CHANGED
         const GRID_SIZE = 13;
 
         let snake = [];
@@ -267,7 +267,14 @@
         const scoreSound = document.getElementById('score-sound'); // CHANGED
         let audioUnlocked = false; // CHANGED
 
-        // --- MOBIL/MÉRETEZÉS: dinamikus csempe-méret (nem transform-scale) --- // CHANGED
+        function isGameOverVisible() { // CHANGED
+            return gameOverMessage && gameOverMessage.style.display === 'flex'; // CHANGED
+        } // CHANGED
+
+        function getLivePlayerNameInput() { // CHANGED
+            return document.getElementById('player-name'); // CHANGED
+        } // CHANGED
+
         function applyGameScale() { // CHANGED
             const rect = gameContainer.getBoundingClientRect(); // CHANGED
             const usable = Math.min(rect.width, rect.height);   // CHANGED
@@ -320,58 +327,50 @@
             unlockAudioOnce(); // CHANGED
             const currentDir = direction;
 
-            if (newDir === 'up' && currentDir !== 'down') {
-                nextDirection = 'up';
-            } else if (newDir === 'down' && currentDir !== 'up') {
-                nextDirection = 'down';
-            } else if (newDir === 'left' && currentDir !== 'right') {
-                nextDirection = 'left';
-            } else if (newDir === 'right' && currentDir !== 'left') {
-                nextDirection = 'right';
-            }
+            if (newDir === 'up' && currentDir !== 'down') nextDirection = 'up';
+            else if (newDir === 'down' && currentDir !== 'up') nextDirection = 'down';
+            else if (newDir === 'left' && currentDir !== 'right') nextDirection = 'left';
+            else if (newDir === 'right' && currentDir !== 'left') nextDirection = 'right';
         }
         window.setNextDirection = setNextDirection;
 
-        // Laptop/desktop vezérlés: nyilak + WASD + IJKL, fókusz-függetlenül is működjön // CHANGED
+        // Laptop/desktop vezérlés: NYILAK + WASD + IJKL
         function handleKeyDirection(e) { // CHANGED
+            const active = document.activeElement; // CHANGED
+            const tag = (active && active.tagName) ? active.tagName.toLowerCase() : ''; // CHANGED
+            const isTypingField = (tag === 'input' || tag === 'textarea'); // CHANGED
+            if (isTypingField) return false; // CHANGED
+            if (isGameOverVisible()) return false; // CHANGED
+
             const key = e.key || ''; // CHANGED
             const code = e.code || ''; // CHANGED
-
-            // Ha név inputban gépel, ne raboljuk el a nyilakat (de WASD mehet) // CHANGED
-            const active = document.activeElement; // CHANGED
-            const inNameInput = active && active.id === 'player-name'; // CHANGED
-
             let dir = null; // CHANGED
 
-            if (!inNameInput) { // CHANGED
-                if (key === 'ArrowUp') dir = 'up';
-                else if (key === 'ArrowDown') dir = 'down';
-                else if (key === 'ArrowLeft') dir = 'left';
-                else if (key === 'ArrowRight') dir = 'right';
-            } // CHANGED
+            if (key === 'ArrowUp') dir = 'up';
+            else if (key === 'ArrowDown') dir = 'down';
+            else if (key === 'ArrowLeft') dir = 'left';
+            else if (key === 'ArrowRight') dir = 'right';
 
-            // WASD (mindig) // CHANGED
-            if (!dir) { // CHANGED
+            if (!dir) {
                 if (key === 'w' || key === 'W' || code === 'KeyW') dir = 'up';
                 else if (key === 's' || key === 'S' || code === 'KeyS') dir = 'down';
                 else if (key === 'a' || key === 'A' || code === 'KeyA') dir = 'left';
                 else if (key === 'd' || key === 'D' || code === 'KeyD') dir = 'right';
-            } // CHANGED
+            }
 
-            // IJKL (opcionális) // CHANGED
-            if (!dir) { // CHANGED
+            if (!dir) {
                 if (key === 'i' || key === 'I' || code === 'KeyI') dir = 'up';
                 else if (key === 'k' || key === 'K' || code === 'KeyK') dir = 'down';
                 else if (key === 'j' || key === 'J' || code === 'KeyJ') dir = 'left';
                 else if (key === 'l' || key === 'L' || code === 'KeyL') dir = 'right';
-            } // CHANGED
+            }
 
-            if (dir) { // CHANGED
+            if (dir) {
                 unlockAudioOnce(); // CHANGED
                 e.preventDefault(); // CHANGED
                 setNextDirection(dir); // CHANGED
                 return true; // CHANGED
-            } // CHANGED
+            }
             return false; // CHANGED
         } // CHANGED
 
@@ -408,20 +407,15 @@
         }
 
         async function submitScore() {
-            const name = playerNameInput.value.trim() || 'Névtelen';
+            const liveInput = getLivePlayerNameInput(); // CHANGED
+            const name = (liveInput ? liveInput.value.trim() : '') || 'Névtelen'; // CHANGED
 
-            const data = {
-                player_name: name,
-                score: score
-            };
+            const data = { player_name: name, score: score };
 
             nameInputArea.innerHTML = 'Pontszám mentése...';
 
             try {
-                const { error } = await supabase
-                    .from(TABLE_NAME)
-                    .insert([data]);
-
+                const { error } = await supabase.from(TABLE_NAME).insert([data]);
                 if (error) throw error;
 
                 nameInputArea.style.display = 'none';
@@ -432,11 +426,13 @@
                 alert('Hiba történt a mentés során: ' + (error.message || 'Ismeretlen hiba.'));
             }
 
+            // visszaépítjük a formot, és újra kötjük a fókusz/click dolgokat (biztos) // CHANGED
             nameInputArea.innerHTML = `
                 Írd be a neved a ranglistához:
-                <input type="text" id="player-name" maxlength="15" placeholder="Név" value="${name}">
+                <input type="text" id="player-name" maxlength="15" placeholder="Név" value="${name}"
+                       inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"> <!-- CHANGED -->
                 <button onclick="submitScore()">Mentés</button>
-            `;
+            `; // CHANGED
         }
         window.submitScore = submitScore;
 
@@ -468,8 +464,7 @@
             clearInterval(gameInterval);
             gameInterval = setInterval(gameLoop, gameSpeed);
 
-            // fókusz: laptopon biztosan kapja a billentyűt // CHANGED
-            try { gameContainer.focus({ preventScroll: true }); } catch (e) { try { gameContainer.focus(); } catch (e2) {} } // CHANGED
+            try { gameContainer.focus({ preventScroll: true }); } catch (e) { try { gameContainer.focus(); } catch (e2) {} }
         }
 
         function placeFood() {
@@ -481,10 +476,7 @@
                 newY = Math.floor(Math.random() * GRID_SIZE);
 
                 for (const pos of snake) {
-                    if (pos.x === newX && pos.y === newY) {
-                        collision = true;
-                        break;
-                    }
+                    if (pos.x === newX && pos.y === newY) { collision = true; break; }
                 }
             } while (collision);
 
@@ -508,21 +500,14 @@
                 case 'right': newHeadX++; break;
             }
 
-            if (newHeadX < 0 || newHeadX >= GRID_SIZE || newHeadY < 0 || newHeadY >= GRID_SIZE) {
-                endGame(); return;
-            }
+            if (newHeadX < 0 || newHeadX >= GRID_SIZE || newHeadY < 0 || newHeadY >= GRID_SIZE) { endGame(); return; }
             for (let i = 1; i < snake.length; i++) {
-                if (snake[i].x === newHeadX && snake[i].y === newHeadY) {
-                    endGame(); return;
-                }
+                if (snake[i].x === newHeadX && snake[i].y === newHeadY) { endGame(); return; }
             }
 
             const ateFood = (newHeadX === food.x && newHeadY === food.y);
 
-            const tailBeforeMove = {
-                x: snake[snake.length - 1].x,
-                y: snake[snake.length - 1].y
-            };
+            const tailBeforeMove = { x: snake[snake.length - 1].x, y: snake[snake.length - 1].y };
 
             snake.unshift({ x: newHeadX, y: newHeadY });
             updateElementPosition(snakeHeadElement, newHeadX, newHeadY);
@@ -534,7 +519,6 @@
                 scoreDisplay.textContent = score;
 
                 playScoreSound(); // CHANGED
-
                 placeFood();
 
                 const newBodySegment = createSegment(tailBeforeMove.x, tailBeforeMove.y);
@@ -563,38 +547,60 @@
             }
         }
 
+        function ensureNameInputInteractive() { // CHANGED
+            const liveInput = getLivePlayerNameInput(); // CHANGED
+            if (!liveInput) return; // CHANGED
+
+            // Android: a billentyűzet csak user-gesztusra nyílik,
+            // ezért az inputra tap/click esetén fókusz biztosítása. // CHANGED
+            liveInput.addEventListener('touchstart', (e) => { /* user gesture */ }, { passive: true }); // CHANGED
+            liveInput.addEventListener('click', () => { try { liveInput.focus(); } catch(_) {} }); // CHANGED
+        } // CHANGED
+
         function endGame() {
             clearInterval(gameInterval);
             finalScoreDisplay.innerHTML = `Elschmittelt közpénz: ${score}`; // CHANGED
             nameInputArea.style.display = 'flex';
             gameOverMessage.style.display = 'flex';
             displayLeaderboard();
+
+            ensureNameInputInteractive(); // CHANGED
         }
 
         function startGame() {
             unlockAudioOnce(); // CHANGED
-
-            // billentyű fókusz előkészítés (tabindex) // CHANGED
             if (!gameContainer.hasAttribute('tabindex')) gameContainer.setAttribute('tabindex', '0'); // CHANGED
-
             initGame();
         }
 
         // --- VEZÉRLÉS ---
-        // Megtartjuk, de a logikát áttereljük a handleKeyDirection-be // CHANGED
         document.addEventListener('keydown', (e) => { handleKeyDirection(e); }); // CHANGED
-        window.addEventListener('keydown', (e) => { handleKeyDirection(e); }); // CHANGED
 
-        // kattintás a játéktérre fókuszt ad (laptopon tipikus) // CHANGED
-        gameContainer.addEventListener('mousedown', () => { try { gameContainer.focus(); } catch (e) {} }); // CHANGED
-        gameContainer.addEventListener('click', () => { try { gameContainer.focus(); } catch (e) {} }); // CHANGED
+        function focusGameIfAllowed(e) { // CHANGED
+            if (isGameOverVisible()) return; // CHANGED
+            const t = e && e.target; // CHANGED
+            if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON')) return; // CHANGED
+            try { gameContainer.focus({ preventScroll: true }); } catch (err) { try { gameContainer.focus(); } catch (err2) {} } // CHANGED
+        } // CHANGED
 
-        gameContainer.addEventListener('touchmove', (e) => { e.preventDefault(); }, { passive: false });
+        gameContainer.addEventListener('mousedown', focusGameIfAllowed); // CHANGED
+        gameContainer.addEventListener('click', focusGameIfAllowed); // CHANGED
+
+        // FONTOS: előző verzióban capture + stopPropagation letiltotta a gombok click-jét.
+        // Most csak azt akadályozzuk meg, hogy a click felmenjen a dokumentumig, de a gomb működjön. // CHANGED
+        gameOverMessage.addEventListener('click', (e) => { e.stopPropagation(); }, false); // CHANGED
+        gameOverMessage.addEventListener('mousedown', (e) => { e.stopPropagation(); }, false); // CHANGED
+        gameOverMessage.addEventListener('touchstart', (e) => { e.stopPropagation(); }, { passive: true }); // CHANGED
+
+        // Mobil scroll tiltás: csak játék közben. (overlay/input nem) // CHANGED
+        gameContainer.addEventListener('touchmove', (e) => { if (!isGameOverVisible()) e.preventDefault(); }, { passive: false }); // CHANGED
         document.getElementById('controls').addEventListener('touchmove', (e) => { e.preventDefault(); }, { passive: false });
 
+        // Swipe irányítás a pályán (csak játék közben) // CHANGED
         let touchStartX = 0;
         let touchStartY = 0;
         gameContainer.addEventListener('touchstart', (e) => {
+            if (isGameOverVisible()) return; // CHANGED
             unlockAudioOnce(); // CHANGED
             const t = e.changedTouches[0];
             touchStartX = t.clientX;
@@ -602,6 +608,7 @@
         }, { passive: true });
 
         gameContainer.addEventListener('touchend', (e) => {
+            if (isGameOverVisible()) return; // CHANGED
             const t = e.changedTouches[0];
             const dx = t.clientX - touchStartX;
             const dy = t.clientY - touchStartY;
@@ -610,11 +617,8 @@
 
             if (Math.max(adx, ady) < 20) return;
 
-            if (adx > ady) {
-                setNextDirection(dx > 0 ? 'right' : 'left');
-            } else {
-                setNextDirection(dy > 0 ? 'down' : 'up');
-            }
+            if (adx > ady) setNextDirection(dx > 0 ? 'right' : 'left');
+            else setNextDirection(dy > 0 ? 'down' : 'up');
         }, { passive: true });
 
         function reflowAll() {
@@ -639,7 +643,6 @@
         displayLeaderboard();
         startGame();
         applyGameScale();
-
     </script>
 
 </body>
