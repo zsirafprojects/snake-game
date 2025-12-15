@@ -32,6 +32,7 @@
             box-shadow: 0 0 20px yellow;
             margin-bottom: 20px;
             overflow: hidden; /* CHANGED */
+            outline: none; /* CHANGED */
         }
         #info-bar {
             margin-bottom: 15px;
@@ -129,8 +130,6 @@
             border: 1px solid #0f0;
             font-size: 20px;
             box-sizing: border-box; /* CHANGED */
-
-            /* fontos: legyen mindig látható, a maradék helyet használja */ /* CHANGED */
             max-height: 45vh; /* CHANGED */
             overflow-y: auto; /* CHANGED */
             overflow-x: hidden; /* CHANGED */
@@ -333,6 +332,49 @@
         }
         window.setNextDirection = setNextDirection;
 
+        // Laptop/desktop vezérlés: nyilak + WASD + IJKL, fókusz-függetlenül is működjön // CHANGED
+        function handleKeyDirection(e) { // CHANGED
+            const key = e.key || ''; // CHANGED
+            const code = e.code || ''; // CHANGED
+
+            // Ha név inputban gépel, ne raboljuk el a nyilakat (de WASD mehet) // CHANGED
+            const active = document.activeElement; // CHANGED
+            const inNameInput = active && active.id === 'player-name'; // CHANGED
+
+            let dir = null; // CHANGED
+
+            if (!inNameInput) { // CHANGED
+                if (key === 'ArrowUp') dir = 'up';
+                else if (key === 'ArrowDown') dir = 'down';
+                else if (key === 'ArrowLeft') dir = 'left';
+                else if (key === 'ArrowRight') dir = 'right';
+            } // CHANGED
+
+            // WASD (mindig) // CHANGED
+            if (!dir) { // CHANGED
+                if (key === 'w' || key === 'W' || code === 'KeyW') dir = 'up';
+                else if (key === 's' || key === 'S' || code === 'KeyS') dir = 'down';
+                else if (key === 'a' || key === 'A' || code === 'KeyA') dir = 'left';
+                else if (key === 'd' || key === 'D' || code === 'KeyD') dir = 'right';
+            } // CHANGED
+
+            // IJKL (opcionális) // CHANGED
+            if (!dir) { // CHANGED
+                if (key === 'i' || key === 'I' || code === 'KeyI') dir = 'up';
+                else if (key === 'k' || key === 'K' || code === 'KeyK') dir = 'down';
+                else if (key === 'j' || key === 'J' || code === 'KeyJ') dir = 'left';
+                else if (key === 'l' || key === 'L' || code === 'KeyL') dir = 'right';
+            } // CHANGED
+
+            if (dir) { // CHANGED
+                unlockAudioOnce(); // CHANGED
+                e.preventDefault(); // CHANGED
+                setNextDirection(dir); // CHANGED
+                return true; // CHANGED
+            } // CHANGED
+            return false; // CHANGED
+        } // CHANGED
+
         // --- SUPABASE RANGISTA FUNKCIÓK ---
         async function displayLeaderboard() {
             leaderboardDiv.innerHTML = '<h3>Ranglista betöltése Supabase-ről...</h3>';
@@ -425,6 +467,9 @@
 
             clearInterval(gameInterval);
             gameInterval = setInterval(gameLoop, gameSpeed);
+
+            // fókusz: laptopon biztosan kapja a billentyűt // CHANGED
+            try { gameContainer.focus({ preventScroll: true }); } catch (e) { try { gameContainer.focus(); } catch (e2) {} } // CHANGED
         }
 
         function placeFood() {
@@ -528,22 +573,21 @@
 
         function startGame() {
             unlockAudioOnce(); // CHANGED
+
+            // billentyű fókusz előkészítés (tabindex) // CHANGED
+            if (!gameContainer.hasAttribute('tabindex')) gameContainer.setAttribute('tabindex', '0'); // CHANGED
+
             initGame();
         }
 
         // --- VEZÉRLÉS ---
-        document.addEventListener('keydown', (e) => {
-            if (e.key.startsWith('Arrow')) {
-                unlockAudioOnce(); // CHANGED
-                e.preventDefault();
-                let dir;
-                if (e.key === 'ArrowUp') dir = 'up';
-                else if (e.key === 'ArrowDown') dir = 'down';
-                else if (e.key === 'ArrowLeft') dir = 'left';
-                else if (e.key === 'ArrowRight') dir = 'right';
-                setNextDirection(dir);
-            }
-        });
+        // Megtartjuk, de a logikát áttereljük a handleKeyDirection-be // CHANGED
+        document.addEventListener('keydown', (e) => { handleKeyDirection(e); }); // CHANGED
+        window.addEventListener('keydown', (e) => { handleKeyDirection(e); }); // CHANGED
+
+        // kattintás a játéktérre fókuszt ad (laptopon tipikus) // CHANGED
+        gameContainer.addEventListener('mousedown', () => { try { gameContainer.focus(); } catch (e) {} }); // CHANGED
+        gameContainer.addEventListener('click', () => { try { gameContainer.focus(); } catch (e) {} }); // CHANGED
 
         gameContainer.addEventListener('touchmove', (e) => { e.preventDefault(); }, { passive: false });
         document.getElementById('controls').addEventListener('touchmove', (e) => { e.preventDefault(); }, { passive: false });
